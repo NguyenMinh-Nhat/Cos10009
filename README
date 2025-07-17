@@ -1,0 +1,74 @@
+# Music Player Features (from main.rb)
+
+## Core Features
+- **Album and Track Loading**
+  - Loads albums and tracks from a file at startup.
+  - Supports album artwork, artist, genre, track duration, and year.
+
+- **Playlist Management**
+  - Loads and saves user playlists from/to `userplaylist.txt`.
+  - Create new playlists.
+  - Add tracks to playlists via popup menu.
+  - Select and view playlists.
+  - Play tracks from playlists.
+
+- **Playback Controls**
+  - Play, pause, and resume tracks.
+  - Seek within a track using the progress bar.
+  - Remembers playback position when paused and resumes from that point.
+  - Automatically plays the next track in album or playlist when current track ends.
+
+- **Recently Played**
+  - Maintains a list of recently played tracks (up to 20).
+
+## User Interface
+- **Sidebar**
+  - Displays library tabs (Playlists, Albums, Artists).
+  - Shows list of playlists with hover animation.
+  - "Create" button for new playlists with hover animation.
+
+- **Main Content**
+  - Displays playlists, "Made For You" section, albums, and recently played tracks.
+  - Scrollable main content area.
+
+- **Album Overlay**
+  - Shows album details, artwork, and track list.
+  - "Back" button with hover animation.
+  - Track rows with hover animation and settings popup.
+
+- **Playlist Overlay**
+  - Shows playlist details and track list.
+  - "Back" button with hover animation.
+  - Track rows with hover animation.
+
+- **Top Bar**
+  - Displays search bar and prompt.
+  - Search for albums, artists, genres, or tracks.
+  - Shows search results (albums and tracks).
+
+- **Queue Panel**
+  - Shows "Now playing" and upcoming tracks from current album or playlist.
+
+- **Player Bar**
+  - Displays current song info, artwork, and playback controls (shuffle, previous, play/pause, next, repeat).
+  - Progress bar with seek support and hover animation on play button.
+
+## Mouse and Keyboard Interaction
+- **Mouse**
+  - Click to play/pause, seek, select playlists/albums/tracks, add to playlist, and navigate UI.
+  - Hover animations for all interactive fields (buttons, track rows, etc).
+
+- **Keyboard**
+  - Type to search.
+  - Backspace to clear search.
+  - Enter to perform search.
+  - Escape to clear search results.
+
+## Other
+- **Auto-scroll**
+  - Mouse wheel scrolls main content area.
+
+- **Debug**
+  - Prints mouse coordinates on click (for development).
+
+---
