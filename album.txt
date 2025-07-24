@@ -1,4 +1,4 @@
-4
+5
 M-TP
 SonTungMTP
 ./images/sontung/sontung.jpg
@@ -66,4 +66,17 @@ Perfect
 Lang
 ./audio/shiki/lang.mp3
 3:16
+2024
+G-Eazy
+LadyKiller
+./images/g-eazy/g-eazy.jpg
+2
+2
+LadyKiller
+./audio/g-eazy/ladykiller.mp3
+4:59
+2023
+Tumblr Girls
+./audio/g-eazy/tumblrgirls.mp3
+4:16
 2024
