@@ -102,13 +102,48 @@ def print_all_tracks(tracks)
     index += 1
   end
 end
+
 def play_track(track)
-  
 end
+
+# Reads a lyrics file for a given track title and returns an array of hashes.
+# Each hash contains :time (in seconds) and :text (the lyric line).
+def read_lyrics_file(track_title)
+  # Build the filename from the track title
+  filename = "lyrics/#{track_title.gsub(/[^\w\-]/, '_')}.txt"
+  lyrics_lines = []
+
+  # Check if the file exists
+  if File.exist?(filename)
+    # Read each line from the file
+    File.foreach(filename) do |line|
+      # Try to match a timestamp at the start of the line, e.g. [1:23] or [01:23]
+      match = line.match(/^\[(\d{1,2}):(\d{2})\]\s*(.*)$/)
+      if match
+        min = match[1].to_i
+        sec = match[2].to_i
+        text = match[3]
+        time = min * 60 + sec
+        lyrics_lines << { time: time, text: text }
+      else
+        # If no timestamp, treat as static text at time 0
+        lyrics_lines << { time: 0, text: line.chomp }
+      end
+    end
+  else
+    # If the file doesn't exist, show a default message
+    lyrics_lines = [{ time: 0, text: "Lyrics not available for this track." }]
+  end
+
+  # Return the array of lyric lines
+  lyrics_lines
+end
+
 def main
   music_file = File.new("album.txt", "r")
-	albums = read_albums(music_file)
+  albums = read_albums(music_file)
   print_all_albums(albums)
-	music_file.close()
+  music_file.close()
 end
+
 main()

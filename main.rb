@@ -72,6 +72,8 @@ class MusicPlayerMain < Gosu::Window
     @last_played_source = nil
     @last_played_playlist_index = nil
     @volume = 1.0 # Default volume (max)
+    @show_lyrics_panel = false
+    @current_lyrics = ""
   end
 
   def needs_cursor?
@@ -89,7 +91,11 @@ class MusicPlayerMain < Gosu::Window
     draw_background
     draw_sidebar
     draw_topbar
-    draw_main_area
+    if @show_lyrics_panel
+      draw_lyrics_panel
+    else
+      draw_main_area
+    end
     draw_queue_panel
     draw_player_bar
   end
@@ -189,6 +195,29 @@ class MusicPlayerMain < Gosu::Window
     print_mouse_coordinates if id == Gosu::MsLeft
     handle_player_bar_buttons
     handle_sidebar_and_main_buttons(id)
+
+    # Lyrics button click
+    btn_w = 80
+    btn_h = 32
+    btn_x = width - QUEUE_WIDTH + 200
+    btn_y = height - PLAYERBAR_HEIGHT + 40
+    if mouse_x >= btn_x && mouse_x <= btn_x + btn_w && mouse_y >= btn_y && mouse_y <= btn_y + btn_h
+      @show_lyrics_panel = true
+      return
+    end
+
+    # Lyrics panel close button
+    if @show_lyrics_panel
+      panel_x = SIDEBAR_WIDTH + 40
+      panel_y = TOPBAR_HEIGHT + 40
+      panel_w = width - SIDEBAR_WIDTH - QUEUE_WIDTH - 80
+      btn_x = panel_x + panel_w - btn_w - 24
+      btn_y = panel_y + 16
+      if mouse_x >= btn_x && mouse_x <= btn_x + btn_w && mouse_y >= btn_y && mouse_y <= btn_y + btn_h
+        @show_lyrics_panel = false
+        return
+      end
+    end
   end
 
   def handle_player_bar_buttons
@@ -272,6 +301,25 @@ class MusicPlayerMain < Gosu::Window
   end
 
   def handle_sidebar_and_main_buttons(id)
+    # Handle volume control with mouse click
+    if id == Gosu::MsLeft
+      vol_x = width - QUEUE_WIDTH + 24
+      vol_y = height - PLAYERBAR_HEIGHT + 40
+      icon_size = 30
+      bar_length = 60
+      bar_height = 8
+      bar_x = vol_x + icon_size + 8
+      bar_y = vol_y + (icon_size - bar_height) / 2
+  
+      if mouse_x >= bar_x && mouse_x <= bar_x + bar_length &&
+         mouse_y >= bar_y && mouse_y <= bar_y + bar_height
+        percent = (mouse_x - bar_x).to_f / bar_length
+        @volume = [[percent, 1.0].min, 0.0].max
+        @current_song&.volume = @volume if @current_song
+        return
+      end
+    end
+
     # Accept letters and numbers for search query
     if id.is_a?(Integer)
       if id >= Gosu::KbA && id <= Gosu::KbZ
@@ -320,28 +368,45 @@ class MusicPlayerMain < Gosu::Window
       @search_results = nil
     end
     
+    
     # Handle Progress bar with click
     if id == Gosu::MsLeft
       bar_width = 700
       bar_x = (width - bar_width) / 2
       bar_y = height - PLAYERBAR_HEIGHT + 20 + 36
+
+      # Use last played info if nothing is currently selected
+      album = @selected_album || @last_played_album
+      song_index = @current_song_index || @last_played_index
+      source = @current_source || @last_played_source
+      playlist_index = @current_playlist_index || @last_played_playlist_index
+
+      # Defensive: get track duration for both album and playlist
+      track_obj = nil
+      if source == :album && album && !song_index.nil?
+        track_obj = album.tracks[song_index]
+      elsif source == :playlist && playlist_index && !song_index.nil?
+        track_title = @playlists[playlist_index][:tracks][song_index]
+        album_obj = @albums.find { |a| a.tracks.any? { |t| t.title == track_title } }
+        track_obj = album_obj.tracks.find { |t| t.title == track_title } if album_obj
+      end
+      
       if mouse_x >= bar_x && mouse_x <= bar_x + bar_width &&
         mouse_y >= bar_y && mouse_y <= bar_y + 8 &&
-        @current_song && @selected_album && @current_song_index
-     
-       song_duration = @selected_album.tracks[@current_song_index].duration
-       total_sec = duration_to_seconds(song_duration)
-       percent = (mouse_x - bar_x).to_f / bar_width
-       seek_sec = (total_sec * percent).to_i
-     
-       # Only adjust the timer, do not restart the song
-       if @is_playing
-         @playback_start_time = Gosu.milliseconds - (seek_sec * 1000)
-       else
-         @paused_time = seek_sec
-       end
-       return
-     end  
+        @current_song && track_obj
+        song_duration = track_obj.duration
+        total_sec = duration_to_seconds(song_duration)
+        percent = (mouse_x - bar_x).to_f / bar_width
+        seek_sec = (total_sec * percent).to_i
+
+        # Only adjust the timer, do not restart the song
+        if @is_playing
+          @playback_start_time = Gosu.milliseconds - (seek_sec * 1000)
+        else
+          @paused_time = seek_sec
+        end
+        return
+      end  
 
       if @selected_playlist_index
         back_x = SIDEBAR_WIDTH + MAIN_PADDING + 16
@@ -377,7 +442,16 @@ class MusicPlayerMain < Gosu::Window
           if mouse_x >= popup_x + 12 && mouse_x <= popup_x + popup_w - 12 &&
              mouse_y >= btn_y && mouse_y <= btn_y + 28
             track = @selected_album.tracks[@track_popup_index]
-            pl[:tracks] << track.title unless pl[:tracks].include?(track.title)
+            i = 0
+            while i < playlist[:tracks].length
+              if playlist[:tracks][i] == track.title
+                break # if track tile already exists, do not add again
+              end
+              i += 1
+            end
+            if i == playlist[:tracks].length
+              playlist[:tracks] << track.title
+            end
             save_playlists
             puts "Added #{track.title} to #{pl[:name]}"
             @track_popup_index = nil
@@ -509,23 +583,6 @@ class MusicPlayerMain < Gosu::Window
           end
           idx += 1
         end
-      end
-
-      # --- Volume Bar Drag/Click ---
-      vol_x = width - QUEUE_WIDTH + 24
-      vol_y = height - PLAYERBAR_HEIGHT + 40
-      icon_size = 30
-      bar_length = 60
-      bar_height = 8
-      bar_x = vol_x + icon_size + 8
-      bar_y = vol_y + (icon_size - bar_height) / 2
-
-      if mouse_x >= bar_x && mouse_x <= bar_x + bar_length &&
-         mouse_y >= bar_y && mouse_y <= bar_y + bar_height
-        percent = (mouse_x - bar_x).to_f / bar_length
-        @volume = [[percent, 1.0].min, 0.0].max
-        @current_song&.volume = @volume if @current_song
-        return
       end
     end
   end
@@ -862,6 +919,9 @@ class MusicPlayerMain < Gosu::Window
     @last_played_index = @current_song_index
     @last_played_source = @current_source
     @last_played_playlist_index = @current_playlist_index
+
+    # Load lyrics for the current track
+    load_lyrics_for_track(track_obj) if track_obj
   end
 
 	def draw_background
@@ -1095,6 +1155,15 @@ class MusicPlayerMain < Gosu::Window
     Gosu.draw_rect(bar_x, bar_y, filled, bar_height, Gosu::Color::GREEN, ZOrder::UI)
     @small_font.draw_text("Vol", bar_x + bar_length + 8, bar_y - 4, ZOrder::UI, 1, 1, Gosu::Color::WHITE)
 
+    # Lyrics button (right of volume bar)
+    btn_w = 80
+    btn_h = 32
+    btn_x = width - QUEUE_WIDTH + 200
+    btn_y = height - PLAYERBAR_HEIGHT + 40
+    hover = mouse_x >= btn_x && mouse_x <= btn_x + btn_w && mouse_y >= btn_y && mouse_y <= btn_y + btn_h
+    btn_color = hover ? Gosu::Color::CYAN : Gosu::Color::GRAY
+    Gosu.draw_rect(btn_x, btn_y, btn_w, btn_h, btn_color, ZOrder::UI)
+    @small_font.draw_text("Lyrics", btn_x + 16, btn_y + 8, ZOrder::UI, 1, 1, Gosu::Color::WHITE)
   end
 
   def draw_album_overlay(album)
@@ -1211,6 +1280,80 @@ class MusicPlayerMain < Gosu::Window
     end
   end
 
+  # Draw search results area
+  def draw_search_results
+    # Draw the background for the search results area
+    Gosu.draw_rect(
+      SIDEBAR_WIDTH, TOPBAR_HEIGHT,
+      width - SIDEBAR_WIDTH - QUEUE_WIDTH,
+      height - TOPBAR_HEIGHT - PLAYERBAR_HEIGHT,
+      Gosu::Color.argb(0xff181818), ZOrder::UI
+    )
+  
+    # Draw the search results header
+    @bold_font.draw_text(
+      "Search Results for: #{@search_query}",
+      SIDEBAR_WIDTH + MAIN_PADDING,
+      TOPBAR_HEIGHT + 32,
+      ZOrder::UI, 1.2, 1.2, Gosu::Color::WHITE
+    )
+  
+    # If there are no results, show a message and return
+    if @search_results.nil? || @search_results.empty?
+      @small_font.draw_text(
+        "No results found.",
+        SIDEBAR_WIDTH + MAIN_PADDING,
+        TOPBAR_HEIGHT + 80,
+        ZOrder::UI, 1, 1, Gosu::Color::WHITE
+      )
+      return
+    end
+  
+    # Draw each search result (album or track)
+    y = TOPBAR_HEIGHT + 80
+    i = 0
+    while i < @search_results.length
+      result = @search_results[i]
+      if result[:type] == :album
+        album = result[:album]
+        # Draw album artwork
+        art_x = SIDEBAR_WIDTH + MAIN_PADDING
+        art_y = y
+        art_size = 100
+        begin
+          img = Gosu::Image.new(album.artwork)
+          scale = art_size.to_f / [img.width, img.height].max
+          img.draw(art_x, art_y, ZOrder::UI, scale, scale)
+        rescue
+          Gosu.draw_rect(art_x, art_y, art_size, art_size, Gosu::Color::GRAY, ZOrder::UI)
+        end
+        # Draw album info next to artwork
+        info_x = art_x + art_size + 20
+        @bold_font.draw_text(album.title, info_x, art_y, ZOrder::UI, 1.2, 1.2, Gosu::Color::WHITE)
+        @font.draw_text("Artist: #{album.artist}", info_x, art_y + 32, ZOrder::UI, 1, 1, Gosu::Color::WHITE)
+        @font.draw_text("Genre: #{$genre_names[album.genre]}", info_x, art_y + 60, ZOrder::UI, 1, 1, Gosu::Color::WHITE)
+        @font.draw_text("Tracks:", info_x, art_y + 90, ZOrder::UI, 1, 1, Gosu::Color::WHITE)
+        # List tracks
+        j = 0
+        while j < album.tracks.length
+          track = album.tracks[j]
+          @small_font.draw_text("#{j+1}. #{track.title} (#{track.duration}, #{track.year})", info_x + 20, art_y + 120 + j * 24, ZOrder::UI, 1, 1, Gosu::Color::WHITE)
+          j += 1
+        end
+        y += [art_size, 120 + album.tracks.length * 24].max + 32
+      elsif result[:type] == :track
+        # Show track result
+        @font.draw_text(
+          "Track: #{result[:track].title} (#{result[:album].title}, #{result[:track].year})",
+          SIDEBAR_WIDTH + MAIN_PADDING, y,
+          ZOrder::UI, 1, 1, Gosu::Color::WHITE
+        )
+        y += 32
+      end
+      i += 1
+    end
+  end
+
   def print_mouse_coordinates
     puts "Mouse clicked at: x=#{mouse_x}, y=#{mouse_y}"
   end
@@ -1218,6 +1361,72 @@ class MusicPlayerMain < Gosu::Window
  	# Show mouse cursor
  	def needs_cursor?; true; end
 
+  # --- Load lyrics for a track with timestamps ---
+  def load_lyrics_for_track(track)
+    @lyrics_lines = read_lyrics_file(track.title)
+    @current_lyrics = "" # fallback for old code
+  end
+
+  # --- Find current lyrics line based on playback time ---
+  def current_lyrics_line
+    return "" if @lyrics_lines.nil? || @lyrics_lines.empty?
+    elapsed_sec = if @is_playing && @playback_start_time
+      ((Gosu.milliseconds - @playback_start_time) / 1000.0)
+    elsif @paused_time
+      @paused_time
+    else
+      0
+    end
+    # Find the index of the current line
+    idx = 0
+    while idx < @lyrics_lines.length - 1
+      if elapsed_sec < @lyrics_lines[idx + 1][:time]
+        break
+      end
+      idx += 1
+    end
+    @lyrics_lines[idx][:text]
+  end
+
+  # --- Draw lyrics panel overlay with synced line ---
+  def draw_lyrics_panel
+    panel_x = SIDEBAR_WIDTH + 40
+    panel_y = TOPBAR_HEIGHT + 40
+    panel_w = width - SIDEBAR_WIDTH - QUEUE_WIDTH - 80
+    panel_h = height - TOPBAR_HEIGHT - PLAYERBAR_HEIGHT - 80
+
+    Gosu.draw_rect(panel_x, panel_y, panel_w, panel_h, Gosu::Color.argb(0xee181818), ZOrder::UI)
+    @bold_font.draw_text("Lyrics", panel_x + 24, panel_y + 16, ZOrder::UI, 1.5, 1.5, Gosu::Color::WHITE)
+
+    # Show current synced lyrics line in center
+    current_line = current_lyrics_line
+    # Prevent crash if no lyrics loaded
+    if @lyrics_lines && !@lyrics_lines.empty?
+      idx = @lyrics_lines.index { |l| l[:text] == current_line }
+      @bold_font.draw_text(current_line, panel_x + 32, panel_y + panel_h / 2 - 24, ZOrder::UI, 1.5, 1.5, Gosu::Color::CYAN)
+
+      # Show previous and next lines faded
+      if idx
+        prev = @lyrics_lines[idx - 1][:text] rescue nil
+        nextl = @lyrics_lines[idx + 1][:text] rescue nil
+        @small_font.draw_text(prev.to_s, panel_x + 32, panel_y + panel_h / 2 - 64, ZOrder::UI, 1.2, 1.2, Gosu::Color::GRAY) if prev
+        @small_font.draw_text(nextl.to_s, panel_x + 32, panel_y + panel_h / 2 + 32, ZOrder::UI, 1.2, 1.2, Gosu::Color::GRAY) if nextl
+      end
+    else
+      # Fallback if no lyrics loaded
+      @bold_font.draw_text("No lyrics available.", panel_x + 32, panel_y + panel_h / 2 - 24, ZOrder::UI, 1.5, 1.5, Gosu::Color::GRAY)
+    end
+
+    # Close button
+    btn_w = 80
+    btn_h = 32
+    btn_x = panel_x + panel_w - btn_w - 24
+    btn_y = panel_y + 16
+    hover = mouse_x >= btn_x && mouse_x <= btn_x + btn_w && mouse_y >= btn_y && mouse_y <= btn_y + btn_h
+    btn_color = hover ? Gosu::Color::RED : Gosu::Color::GRAY
+    Gosu.draw_rect(btn_x, btn_y, btn_w, btn_h, btn_color, ZOrder::UI)
+    @small_font.draw_text("Close", btn_x + 16, btn_y + 8, ZOrder::UI, 1, 1, Gosu::Color::WHITE)
+  end
 
 end
 
