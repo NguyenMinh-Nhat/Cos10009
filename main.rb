@@ -73,7 +73,6 @@ class MusicPlayerMain < Gosu::Window
     @last_played_playlist_index = nil
     @volume = 1.0 # Default volume (max)
     @show_lyrics_panel = false
-    @current_lyrics = ""
   end
 
   def needs_cursor?
@@ -239,13 +238,13 @@ class MusicPlayerMain < Gosu::Window
     # Shuffle
     if mouse_x >= 726 && mouse_x <= 766 && mouse_y >= 808 && mouse_y <= 828
       @shuffle_mode = !@shuffle_mode
-      puts "[DEBUG] Shuffle mode is now #{@shuffle_mode ? 'ON' : 'OFF'}"
+      puts "Shuffle mode is  #{@shuffle_mode ? 'ON' : 'OFF'}"
       return
     end
     # Repeat
     if mouse_x >= 943 && mouse_x <= 981 && mouse_y >= 801 && mouse_y <= 815
       @repeat_mode = !@repeat_mode
-      puts "[DEBUG] Repeat mode is now #{@repeat_mode ? 'ON' : 'OFF'}"
+      puts "Repeat mode is #{@repeat_mode ? 'ON' : 'OFF'}"
       return
     end
   end
@@ -256,12 +255,9 @@ class MusicPlayerMain < Gosu::Window
     source = @current_source || @last_played_source
     playlist_index = @current_playlist_index || @last_played_playlist_index
   
-    # Use Gosu::Song#pause and #resume if available, else fallback to play/stop
-    # Handle play/pause/resume logic for the music player
 
     # If music is currently playing and not paused, pause it
     if @is_playing && !@is_paused
-      # If the song object supports pause, use it; otherwise, stop playback
       if @current_song.respond_to?(:pause)
         @current_song.pause
       else
@@ -278,7 +274,6 @@ class MusicPlayerMain < Gosu::Window
 
     # If music is paused and there is a current song, resume playback
     elsif @is_paused && @current_song
-      # If the song object supports resume, use it; otherwise, play from the beginning
       if @current_song.respond_to?(:resume)
         @current_song.resume
       else
@@ -294,7 +289,7 @@ class MusicPlayerMain < Gosu::Window
       @is_paused = false
       @is_playing = true
 
-    # If nothing is playing but we have a track to play, start playback
+    # If nothing is playing start playback
     elsif !@is_playing && album && !song_index.nil?
       play_track(song_index, album, source, playlist_index)
     end
@@ -1032,11 +1027,57 @@ class MusicPlayerMain < Gosu::Window
           i += 1
           row += 1
         end
-      
+
+    # load tracks from the playlist
+    elsif source == :playlist && playlist_index
+      playlist = @playlists[playlist_index]
+      track_title = playlist[:tracks][song_index]
+      track_obj = nil
+      album_obj = nil
+      # Find the track in the playlist albums
+      i = 0
+      while i < @albums.length
+        alb = @albums[i]
+        j = 0
+        while j < alb.tracks.length
+          tr = alb.tracks[j]
+          if tr.title == track_title
+            track_obj = tr
+            album_obj = alb
+            break
+          end
+          j += 1
+        end
+        break if track_obj
+        i += 1
+      end
+      # get tracks and print to queue
+      if track_obj
+        @small_font.draw_text(track_obj.title, base_x, 100, ZOrder::UI, 1, 1, Gosu::Color::WHITE)
+        # Show next track in playlist
+        next_index = song_index + 1
+        if next_index < playlist[:tracks].length
+          next_title = playlist[:tracks][next_index]
+          @tiny_font.draw_text("Next: #{next_title}", base_x, 130, ZOrder::UI, 1, 1, Gosu::Color.argb(0xffb3b3b3))
+        else
+          @tiny_font.draw_text("Next: -", base_x, 130, ZOrder::UI, 1, 1, Gosu::Color.argb(0xffb3b3b3))
+        end
+        # List all upcoming tracks (after current)
+        i = next_index
+        row = 0
+        while i < playlist[:tracks].length
+          @tiny_font.draw_text(playlist[:tracks][i], base_x, 160 + row * 28, ZOrder::UI, 1, 1, Gosu::Color.argb(0xffb3b3b3))
+          i += 1
+          row += 1
+        end
       else
         @small_font.draw_text("Nothing playing", base_x, 100, ZOrder::UI, 1, 1, Gosu::Color::WHITE)
         @tiny_font.draw_text("Next from: -", base_x, 130, ZOrder::UI, 1, 1, Gosu::Color.argb(0xffb3b3b3))
       end
+    else
+      @small_font.draw_text("Nothing playing", base_x, 100, ZOrder::UI, 1, 1, Gosu::Color::WHITE)
+      @tiny_font.draw_text("Next from: -", base_x, 130, ZOrder::UI, 1, 1, Gosu::Color.argb(0xffb3b3b3))
+    end
     else
       @small_font.draw_text("Nothing playing", base_x, 100, ZOrder::UI, 1, 1, Gosu::Color::WHITE)
       @tiny_font.draw_text("Next from: -", base_x, 130, ZOrder::UI, 1, 1, Gosu::Color.argb(0xffb3b3b3))
@@ -1364,7 +1405,6 @@ class MusicPlayerMain < Gosu::Window
   # --- Load lyrics for a track with timestamps ---
   def load_lyrics_for_track(track)
     @lyrics_lines = read_lyrics_file(track.title)
-    @current_lyrics = "" # fallback for old code
   end
 
   # --- Find current lyrics line based on playback time ---
